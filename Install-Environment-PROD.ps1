@@ -19,7 +19,12 @@ $defaultGeminiApiKey = 'AIzaSyCi-syNg5XQFC8KWpD3TwmXkSbqJEEhOc' # <-- ¡¡REEMPL
 
 # URLs clave del proyecto
 $gitRepoUrl = "https://github.com/1willfreeman1/entorno-viviente.git"
+# --- CORRECCIÓN ---
+# Se definen las URLs directas (raw) para el script y la configuración.
+# Esto elimina la necesidad de tener Git instalado para el arranque inicial.
+$rawConfigUrl = "https://raw.githubusercontent.com/1willfreeman1/entorno-viviente/main/config.json"
 $rawScriptUrl = "https://raw.githubusercontent.com/1willfreeman1/entorno-viviente/main/Install-Environment-PROD.ps1"
+
 
 # Tema de colores y símbolos de estado
 $theme = @{ Header="White"; Section="Cyan"; Action="Yellow"; Running="Yellow"; Success="Green"; Failure="Red"; Info="Gray"; Warning="Magenta"; Skip="Blue" }
@@ -32,7 +37,7 @@ $desktopPath = [System.Environment]::GetFolderPath('Desktop')
 $systemFolderPath = Join-Path $desktopPath -ChildPath ".environment_system"
 $cachePath = Join-Path $systemFolderPath "Portable_App_Cache"
 $sourcePath = Join-Path $systemFolderPath "source"
-$configPath = Join-Path $sourcePath "config.json"
+$configPath = Join-Path $sourcePath "config.json" # Aunque la carguemos de internet, la guardaremos localmente.
 $masterScriptPath = Join-Path $sourcePath "Install-Environment-PROD.ps1"
 $executionLogPath = Join-Path $systemFolderPath "Execution-Log-$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss').txt"
 $lockFilePath = Join-Path $systemFolderPath ".lock"
@@ -62,7 +67,7 @@ if ($MyInvocation.MyCommand.Path -eq $masterScriptPath) {
 $summary = [ordered]@{ "Status" = "In Progress"; "StartTime" = Get-Date; Actions = @(); Warnings = @(); Errors = "" }
 try {
     #region --- FASE 1: VERIFICACIÓN Y CONFIGURACIÓN ---
-    @($systemFolderPath, $cachePath) | ForEach-Object { New-Item $_ -ItemType Directory -Force -ErrorAction SilentlyContinue | Out-Null }
+    @($systemFolderPath, $cachePath, $sourcePath) | ForEach-Object { New-Item $_ -ItemType Directory -Force -ErrorAction SilentlyContinue | Out-Null }
     Write-Host ("-" * 70); Write-Host " ORGANISMO DE INSTALACIÓN v$scriptVersion" -ForegroundColor $theme['Header']; Write-Host ("-" * 70)
     
     if (Test-Path $lockFilePath) { throw "Ya hay una instancia del script en ejecución. Si es un error, elimina: $lockFilePath" }
@@ -70,21 +75,20 @@ try {
 
     Write-Host "`n--- FASE 1: VERIFICACIÓN Y CONFIGURACIÓN ---" -ForegroundColor $theme['Section']
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw "Winget no está instalado." }
-    # --- CORRECCIÓN ---
-    # Se añade una verificación para asegurar que Git está disponible en el sistema para poder clonar el repositorio.
-    # Esta es una dependencia de arranque necesaria antes de que el script pueda gestionar su propio Git portable.
-    if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw "Git no está instalado o no se encuentra en el PATH del sistema. Es necesario para la clonación inicial." }
-    if (-not (Test-Connection "github.com" -Count 1 -Quiet)) { throw "No hay conexión a internet." }
+    if (-not (Test-Connection "github.com" -Count 1 -Quiet)) { throw "No hay conexión a internet para el arranque." }
     Log-Task "Verificaciones de prerrequisitos superadas." 'Success' 1
     
-    if (-not (Test-Path (Join-Path $sourcePath ".git"))) { Log-Task "Clonando repositorio fuente por primera vez..." 'Running' 1; git clone $gitRepoUrl $sourcePath }
-
-    # Carga de Configuración: Externa con fallback a Interna
+    # --- LÓGICA DE CONFIGURACIÓN REVISADA ---
+    # Se intenta descargar la configuración desde la URL raw. Si falla, usa la configuración interna.
+    # Esto elimina la dependencia de tener Git instalado en el sistema.
     try {
-        if (Test-Path $configPath) { $config = Get-Content -Path $configPath -Raw | ConvertFrom-Json; Log-Task "Configuración cargada desde 'config.json'." 'Success' 1 }
-        else { throw "No se encontró 'config.json'. Se usará la configuración por defecto." }
+        Log-Task "Intentando descargar configuración externa..." 'Running' 1
+        $configJson = Invoke-WebRequest -Uri $rawConfigUrl -UseBasicParsing | Select-Object -ExpandProperty Content
+        $configJson | Set-Content -Path $configPath # Se guarda una copia local
+        $config = $configJson | ConvertFrom-Json
+        Log-Task "Configuración externa cargada y guardada localmente." 'Success' 1
     } catch {
-        Log-Task $_.Exception.Message 'Warning' 1
+        Log-Task "No se pudo descargar la configuración externa ($($_.Exception.Message))." 'Warning' 1
         $summary.Warnings += "Usando configuración interna por defecto."
         $config = @{
             workspaceName = "Mi_Entorno_Dev_Portatil"
