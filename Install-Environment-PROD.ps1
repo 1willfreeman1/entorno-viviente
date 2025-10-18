@@ -22,8 +22,6 @@ $gitRepoUrl = "https://github.com/1willfreeman1/entorno-viviente.git"
 $rawScriptUrl = "https://raw.githubusercontent.com/1willfreeman1/entorno-viviente/main/Install-Environment-PROD.ps1"
 
 # Tema de colores y símbolos de estado
-# --- CORRECCIÓN 2 ---
-# Se añade la clave 'Running' al tema para que coincida con su símbolo de estado y evitar errores de color nulo.
 $theme = @{ Header="White"; Section="Cyan"; Action="Yellow"; Running="Yellow"; Success="Green"; Failure="Red"; Info="Gray"; Warning="Magenta"; Skip="Blue" }
 $statusSymbols = @{ Running = "[⏳]"; Success = "[✓]"; Warning = "[⚠]"; Failure = "[✗]"; Info = "[-]"; Skip = "[»]" }
 #endregion
@@ -72,6 +70,10 @@ try {
 
     Write-Host "`n--- FASE 1: VERIFICACIÓN Y CONFIGURACIÓN ---" -ForegroundColor $theme['Section']
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw "Winget no está instalado." }
+    # --- CORRECCIÓN ---
+    # Se añade una verificación para asegurar que Git está disponible en el sistema para poder clonar el repositorio.
+    # Esta es una dependencia de arranque necesaria antes de que el script pueda gestionar su propio Git portable.
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw "Git no está instalado o no se encuentra en el PATH del sistema. Es necesario para la clonación inicial." }
     if (-not (Test-Connection "github.com" -Count 1 -Quiet)) { throw "No hay conexión a internet." }
     Log-Task "Verificaciones de prerrequisitos superadas." 'Success' 1
     
