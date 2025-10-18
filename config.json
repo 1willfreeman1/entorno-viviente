@@ -1,0 +1,28 @@
+{
+  "workspaceName": "Mi_Entorno_Dev_Portatil",
+  "packages": [
+    {
+      "Name": "VSCode Portable",
+      "Type": "Portable",
+      "Url": "https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-archive",
+      "FileName": "vscode.zip",
+      "ExePathInZip": "code.exe",
+      "ShortcutName": "VSCode",
+      "ManagesSettings": true
+    },
+    {
+      "Name": "Git Portable",
+      "Type": "Portable",
+      "Url": "https://github.com/git-for-windows/git/releases/download/v2.46.0.windows.1/PortableGit-2.46.0-64-bit.7z.exe",
+      "FileName": "git.exe",
+      "ExePathInZip": "git-bash.exe",
+      "ShortcutName": "Git Bash"
+    },
+    {
+      "Name": "Node.js (LTS)",
+      "Type": "Installer",
+      "WingetId": "OpenJS.NodeJS.LTS",
+      "Command": "node"
+    }
+  ]
+}
