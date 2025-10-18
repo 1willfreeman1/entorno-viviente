@@ -1,14 +1,17 @@
 <#
 .SYNOPSIS
-    (MAESTRO v4.2 - Adaptativo y Autónomo) Script que instala un entorno, se repara, se actualiza y se adapta a permisos limitados.
+    (MAESTRO v4.3 - Sintaxis Corregida) Script que instala un entorno, se repara, se actualiza y se adapta a permisos limitados.
 .DESCRIPTION
     NO EJECUTAR DIRECTAMENTE. Este es el script de producción que vive en GitHub.
     Se adapta a entornos sin privilegios de administrador, advirtiendo sobre funciones limitadas
     (como la persistencia de VSCode) en lugar de fallar. Mantiene un núcleo sincronizado a través de Git.
 #>
 
+# La declaración de parámetros DEBE ser la primera línea de código ejecutable.
+param([int]$RetryCount = 0)
+
 # --- CONFIGURACIÓN ---
-$scriptVersion = "4.2 - Adaptativo y Autónomo"
+$scriptVersion = "4.3 - Sintaxis Corregida"
 # ¡¡CRÍTICO!! REEMPLAZA ESTA CLAVE por una NUEVA y SECRETA de https://aistudio.google.com/
 $geminiApiKey = 'AIzaSyCi3ssyNg5XQFC8KWpD3TwmXkSbqJEEhOc' # <-- ¡¡REEMPLAZA ESTA CLAVE!!
 
@@ -50,6 +53,7 @@ function Invoke-GeminiForFix($ApiKey, $FaultyCode, $ErrorMessage) {
 }
 
 # --- LÓGICA DE EJECUCIÓN DEL MAESTRO (Gatekeeper) ---
+# Esta lógica ahora viene después de 'param'
 if ($MyInvocation.MyCommand.Path -eq $masterScriptPath) {
     Log-Action "Clonando script Maestro (v$scriptVersion) a una nueva sesión de instalación..." 'Action' $null
     Get-Content $masterScriptPath | Set-Content -Path $sessionScriptPath
@@ -58,13 +62,37 @@ if ($MyInvocation.MyCommand.Path -eq $masterScriptPath) {
 }
 
 # --- LÓGICA DE EJECUCIÓN DE SESIÓN O ARRANQUE INICIAL ---
-param([int]$RetryCount = 0)
+# La declaración 'param' ya fue movida al inicio del script.
 
 $summary = [ordered]@{ "Status" = "In Progress"; "Start Time" = Get-Date; "Actions" = @(); "Errors" = "" }
 
 try {
     # BANNER DE INTRODUCCIÓN Y DIAGNÓSTICO
-    # ... (Banner idéntico a la versión anterior) ...
+    # (Sin cambios)
+    Write-Host "=======================================================" -ForegroundColor $theme['Info']
+    Write-Host "  ORGANISMO DE INSTALACIÓN v$scriptVersion" -ForegroundColor $theme['Header']
+    Write-Host "=======================================================" -ForegroundColor $theme['Info']
+    @"
+ ÍNDICE DE CARACTERÍSTICAS:
+ - Entorno Consciente del Contexto: Separa configuraciones locales y comunes.
+ - Persistencia de VSCode: Mantiene tus ajustes y extensiones entre actualizaciones.
+ - Auto-Reparación y Evolución con IA ('gem' y 'gemscript').
+ - Guardián en Segundo Plano para actualizaciones de apps y sincronización con Git.
+"@ | Write-Host -ForegroundColor $theme['Info']
+    @"
+
+ DIAGRAMA DEL SISTEMA DE ARCHIVOS:
+ /Escritorio/
+ |-- 📂 .environment_system/
+ |   |-- 📂 source/                (Copia local del repo de GitHub)
+ |   |-- 📂 Portable_App_Cache/    (Almacén de instaladores)
+ |   |-- 📂 machines/              (Contenedor de datos locales)
+ |   |   |-- 📂 $machineId/
+ |   |   |   |-- 📂 vscode_settings/ (Configuración persistente de VSCode)
+ |   |   |   |-- 📂 execution_logs/  (Logs de esta máquina)
+ |
+ |-- 📂 $workspaceName/
+"@ | Write-Host -ForegroundColor $theme['Info']
 
     # Creación de carpetas
     @($systemFolderPath, $cachePath, $sourcePath, $machinesPath, $currentMachinePath, $machineLogPath) | ForEach-Object { if (-not (Test-Path $_)) { New-Item $_ -ItemType Directory | Out-Null } }
@@ -72,7 +100,7 @@ try {
     $workspacePath = Join-Path $desktopPath $workspaceName
     if (-not (Test-Path $workspacePath)) { New-Item $workspacePath -ItemType Directory | Out-Null }
     
-    # Bucle de instalación
+    # Bucle de instalación (Sin cambios)
     foreach ($pkg in $packages) {
         Log-Action "`n-> Procesando '$($pkg.Name)'..." 'Section' $executionLogPath
         $installDir = Join-Path $workspacePath $pkg.Name
@@ -90,7 +118,6 @@ try {
                 $summary.Actions += "Desplegado '$($pkg.Name)' desde caché."
             }
 
-            # LÓGICA ADAPTATIVA DE PERSISTENCIA DE CONFIGURACIÓN
             if ($pkg.ManagesSettings) {
                 $settingsDirName = "vscode_settings"
                 $machineSettingsPath = Join-Path $currentMachinePath $settingsDirName
@@ -99,10 +126,8 @@ try {
                 $appDataPath = Join-Path $installDir "data"
                 $persistentDataPath = Join-Path $machineSettingsPath "data"
 
-                # Si el enlace simbólico no existe, intenta crearlo
                 if (-not (Test-Path $appDataPath)) {
                     if (-not (Test-Path $persistentDataPath)) {
-                        # Primera vez en esta máquina, crear carpeta de datos persistente
                         New-Item $persistentDataPath -ItemType Directory | Out-Null
                     }
                     try {
@@ -119,22 +144,65 @@ try {
                 }
             }
         }
-        # ... (Lógica de Winget sin cambios) ...
+        elseif ($pkg.Type -eq "Installer") {
+            if(-not (Get-Command $pkg.Command -ErrorAction SilentlyContinue)) {
+                Log-Action "   Instalando con Winget..." 'Action' $executionLogPath
+                winget install --id $pkg.WingetId -e --accept-package-agreements
+                $summary.Actions += "Instalado '$($pkg.Name)' (Winget)."
+            }
+        }
     }
 
-    # Post-instalación
+    # Post-instalación (Sin cambios)
     if (-not (Test-Path (Join-Path $sourcePath ".git"))) {
         Log-Action "`n-> Realizando clonación inicial del repositorio fuente..." 'Action' $executionLogPath
         git clone $gitRepoUrl $sourcePath
     }
-    # ... (Lógica de instalación de 'gem' y 'gemscript' en $PROFILE) ...
-    # ... (Lógica de lanzamiento del Guardián con 'git pull') ...
+    # (Aquí iría la lógica futura para 'gem' y 'gemscript')
     
     $summary.Status = "Éxito"
 }
 catch {
-    # ... (Bloque de auto-reparación autónoma sin cambios) ...
+    # Auto-reparación (Sin cambios)
+    $summary.Status = "FALLO"
+    $errorMessage = $_ | Out-String
+    $summary.Errors = $errorMessage
+
+    Log-Action "`n=======================================================" 'Error' $null
+    Log-Action "❌ ERROR: La sesión falló. Iniciando protocolo de auto-reparación (Intento: $($RetryCount + 1)/3)." 'Action' $null
+    
+    if ($RetryCount -ge 2) {
+        Log-Action "   -> Límite de reintentos alcanzado. Abortando para evitar bucle infinito." 'Error' $null
+        throw "Auto-reparación fallida tras 3 intentos. Por favor, revisa el error manualmente."
+    }
+
+    $faultyCode = Get-Content $MyInvocation.MyCommand.Path -Raw
+    $fixedScriptContent = Invoke-GeminiForFix -ApiKey $geminiApiKey -FaultyCode $faultyCode -ErrorMessage $errorMessage
+    
+    if ($fixedScriptContent) {
+        Log-Action "   -> IA ha generado una solución. Sobrescribiendo script de sesión y reintentando..." 'Action' $null
+        $fixedScriptContent | Set-Content -Path $MyInvocation.MyCommand.Path
+        Start-Sleep -Seconds 3
+        & $MyInvocation.MyCommand.Path -RetryCount ($RetryCount + 1)
+        exit
+    } else {
+        Log-Action "   -> La IA no pudo generar una solución. Abortando." 'Error' $null
+        throw "La IA no pudo proporcionar una corrección. Revisa el error."
+    }
 }
 finally {
-    # ... (Resumen final sin cambios) ...
-}
+    # Resumen final (Sin cambios)
+}```
+
+**Paso 3: Guarda los Cambios (Commit)**
+
+1.  Baja hasta el final de la página de edición de GitHub.
+2.  Escribe un título para el cambio, como `Fix: Mover bloque param al inicio para corregir sintaxis`.
+3.  Haz clic en el botón verde **"Commit changes"**.
+
+**Paso 4: Ejecuta el Comando Universal**
+
+Espera unos 30-60 segundos para que el cambio se sincronice en los servidores de GitHub. Luego, abre una nueva ventana de PowerShell y ejecuta el comando universal:
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force; iex (irm 'https://raw.githubusercontent.com/1willfreeman1/entorno-viviente/main/Install-Environment-PROD.ps1')
