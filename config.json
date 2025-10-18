@@ -17,12 +17,6 @@
       "FileName": "git.exe",
       "ExePathInZip": "git-bash.exe",
       "ShortcutName": "Git Bash"
-    },
-    {
-      "Name": "Node.js (LTS)",
-      "Type": "Installer",
-      "WingetId": "OpenJS.NodeJS.LTS",
-      "Command": "node"
     }
   ]
 }
