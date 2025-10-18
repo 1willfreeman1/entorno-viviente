@@ -20,10 +20,10 @@ $defaultGeminiApiKey = 'AIzaSyCi-syNg5XQFC8KWpD3TwmXkSbqJEEhOc' # <-- ¡¡REEMPL
 # URLs clave del proyecto
 $gitRepoUrl = "https://github.com/1willfreeman1/entorno-viviente.git"
 # --- CORRECCIÓN ---
-# Se definen las URLs directas (raw) para el script y la configuración.
-# Esto elimina la necesidad de tener Git instalado para el arranque inicial.
-$rawConfigUrl = "https://raw.githubusercontent.com/1willfreeman1/entorno-viviente/main/config.json"
-$rawScriptUrl = "https://raw.githubusercontent.com/1willfreeman1/entorno-viviente/main/Install-Environment-PROD.ps1"
+# Un error 404 suele indicar que la rama no es 'main', sino 'master'.
+# Se actualizan todas las URLs para usar 'master' y mantener la consistencia.
+$rawConfigUrl = "https://raw.githubusercontent.com/1willfreeman1/entorno-viviente/master/config.json"
+$rawScriptUrl = "https://raw.githubusercontent.com/1willfreeman1/entorno-viviente/master/Install-Environment-PROD.ps1"
 
 
 # Tema de colores y símbolos de estado
@@ -37,7 +37,7 @@ $desktopPath = [System.Environment]::GetFolderPath('Desktop')
 $systemFolderPath = Join-Path $desktopPath -ChildPath ".environment_system"
 $cachePath = Join-Path $systemFolderPath "Portable_App_Cache"
 $sourcePath = Join-Path $systemFolderPath "source"
-$configPath = Join-Path $sourcePath "config.json" # Aunque la carguemos de internet, la guardaremos localmente.
+$configPath = Join-Path $sourcePath "config.json"
 $masterScriptPath = Join-Path $sourcePath "Install-Environment-PROD.ps1"
 $executionLogPath = Join-Path $systemFolderPath "Execution-Log-$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss').txt"
 $lockFilePath = Join-Path $systemFolderPath ".lock"
@@ -80,7 +80,6 @@ try {
     
     # --- LÓGICA DE CONFIGURACIÓN REVISADA ---
     # Se intenta descargar la configuración desde la URL raw. Si falla, usa la configuración interna.
-    # Esto elimina la dependencia de tener Git instalado en el sistema.
     try {
         Log-Task "Intentando descargar configuración externa..." 'Running' 1
         $configJson = Invoke-WebRequest -Uri $rawConfigUrl -UseBasicParsing | Select-Object -ExpandProperty Content
