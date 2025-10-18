@@ -22,7 +22,9 @@ $gitRepoUrl = "https://github.com/1willfreeman1/entorno-viviente.git"
 $rawScriptUrl = "https://raw.githubusercontent.com/1willfreeman1/entorno-viviente/main/Install-Environment-PROD.ps1"
 
 # Tema de colores y símbolos de estado
-$theme = @{ Header="White"; Section="Cyan"; Action="Yellow"; Success="Green"; Error="Red"; Info="Gray"; Warning="Magenta"; Skip="Blue" }
+# --- CORRECCIÓN 2 ---
+# Se añade la clave 'Running' al tema para que coincida con su símbolo de estado y evitar errores de color nulo.
+$theme = @{ Header="White"; Section="Cyan"; Action="Yellow"; Running="Yellow"; Success="Green"; Failure="Red"; Info="Gray"; Warning="Magenta"; Skip="Blue" }
 $statusSymbols = @{ Running = "[⏳]"; Success = "[✓]"; Warning = "[⚠]"; Failure = "[✗]"; Info = "[-]"; Skip = "[»]" }
 #endregion
 
@@ -139,7 +141,7 @@ finally {
     # --- RESUMEN Y LIMPIEZA ---
     if (Test-Path $lockFilePath) { Remove-Item $lockFilePath }
     $summary.EndTime = Get-Date; $summary.Duration = New-TimeSpan -Start $summary.StartTime -End $summary.EndTime
-    $finalColor = if ($summary.Status -eq 'Éxito') { $theme.Success } else { $theme.Error }
+    $finalColor = if ($summary.Status -eq 'Éxito') { $theme.Success } else { $theme.Failure }
     Write-Host "`n"; Write-Host ("-" * 70); Write-Host " PROCESO FINALIZADO - ESTADO: $($summary.Status.ToUpper())" -ForegroundColor $finalColor; Write-Host ("-" * 70)
     Log-Task "Duración total: $($summary.Duration.ToString('g'))" 'Info'; Log-Task "Log completo guardado en: $executionLogPath" 'Info'
 }
