@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-    Bootstrapper de Entorno Viviente - PROD (Version 5 - URL Corregida)
+    Bootstrapper de Entorno Viviente - PROD (Version 8 - Notepad++ anadido)
 .DESCRIPTION
-    Este script corrige la URL del repositorio fuente para usar 'entorno-viviente',
-    haciendo que el sistema se referencie a si mismo correctamente. Mantiene la
-    logica de autoinstalacion de Git para robustez maxima en maquinas limpias.
+    Este script anade Notepad++ a la lista de instalaciones de software, junto
+    a Greenshot y las demas herramientas. Mantiene toda la logica de robustez
+    de la version anterior.
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -49,7 +49,9 @@ $configJsonContent = @'
     { "name": "Visual Studio Code", "id": "Microsoft.VisualStudioCode" },
     { "name": "Git", "id": "Git.Git" },
     { "name": "Python 3", "id": "Python.Python.3" },
-    { "name": "Google Chrome", "id": "Google.Chrome" }
+    { "name": "Google Chrome", "id": "Google.Chrome" },
+    { "name": "Greenshot", "id": "Greenshot.Greenshot" },
+    { "name": "Notepad++", "id": "Notepad++.Notepad++" }
   ],
   "projects_to_clone": [
     { "name": "dotfiles", "repo_url": "https://github.com/1willfreeman1/dotfiles.git" },
