@@ -1,34 +1,47 @@
 <#
 .SYNOPSIS
-    Bootstrapper de Entorno Viviente - PROD (Version Corregida y Final)
+    Bootstrapper de Entorno Viviente - PROD (Version 5 - URL Corregida)
 .DESCRIPTION
-    Este es el unico punto de entrada. Utiliza el metodo de entrecomillado simple ('@'...')
-    para garantizar que los scripts se escriban literalmente en el disco, resolviendo
-    los errores de ejecucion anteriores. Se instala de forma autonoma en el Escritorio.
+    Este script corrige la URL del repositorio fuente para usar 'entorno-viviente',
+    haciendo que el sistema se referencie a si mismo correctamente. Mantiene la
+    logica de autoinstalacion de Git para robustez maxima en maquinas limpias.
 #>
 
 $ErrorActionPreference = 'Stop'
 Write-Host "Iniciando despliegue del Entorno Viviente..."
 
-# --- 1. Definicion del Entorno de Despliegue en el Escritorio ---
+# --- 1. VERIFICACION E INSTALACION DE GIT ---
+Write-Host "[PASO 1/5] Verificando si Git esta instalado..."
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    Write-Host "[INFO] Git no se encuentra. Instalando con winget..."
+    try {
+        winget install --id Git.Git -e --silent --accept-source-agreements --accept-package-agreements
+        Write-Host "[SUCCESS] Git instalado correctamente."
+    } catch {
+        Write-Host "[FATAL] No se pudo instalar Git. El script no puede continuar."
+        exit 1
+    }
+} else {
+    Write-Host "[INFO] Git ya esta instalado."
+}
+
+
+# --- 2. Definicion del Entorno de Despliegue en el Escritorio ---
 $baseDir = Join-Path $env:USERPROFILE "Desktop\LivingEnvironment"
-Write-Host "Directorio base del entorno: '$baseDir'"
+Write-Host "[PASO 2/5] Creando directorio base del entorno: '$baseDir'"
 
 if (-not (Test-Path $baseDir)) {
-    Write-Host "Creando directorio base..."
     New-Item -Path $baseDir -ItemType Directory -Force | Out-Null
 }
 
-# --- 2. Contenido Embebido de los Archivos del Sistema (Usando comillas simples para texto literal) ---
-
-# Contenido para config.json
+# --- 3. Contenido Embebido de los Archivos del Sistema ---
 $configJsonContent = @'
 {
   "github_username": "1willfreeman1",
   "github_pat": "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",
   "gemini_api_key": "AIzaSyCi3ssyNg5XQFC8KWpD3TwmXkSbqJEEhOc",
   "repositories": {
-    "sync_source": "https://github.com/1willfreeman1/dev-environment-sync.git",
+    "sync_source": "https://github.com/1willfreeman1/entorno-viviente.git",
     "settings_backup": "https://github.com/1willfreeman1/vscode-settings-backup.git",
     "logs": "https://github.com/1willfreeman1/dev-environment-logs.git"
   },
@@ -45,7 +58,6 @@ $configJsonContent = @'
 }
 '@
 
-# Contenido para install.ps1
 $installPs1Content = @'
 # install.ps1: Script de arranque desatendido.
 $ErrorActionPreference = 'Stop'
@@ -57,7 +69,7 @@ Write-Host "[INFO] Iniciando configuracion del entorno autonomo en '$baseDir'...
 if (-not (Test-Path $projectsDir)) { New-Item -Path $projectsDir -ItemType Directory -Force | Out-Null }
 $config = Get-Content -Path $configFile -Raw | ConvertFrom-Json
 $authedSyncUrl = $config.repositories.sync_source.Replace("https://", "https://$($config.github_pat)@")
-Write-Host "[INFO] Clonando el repositorio fuente..."
+Write-Host "[INFO] Clonando el repositorio fuente '$($config.repositories.sync_source)'..."
 if (Test-Path $syncRepoDir) { Remove-Item -Path $syncRepoDir -Recurse -Force }
 git clone --quiet $authedSyncUrl $syncRepoDir
 Copy-Item -Path $configFile -Destination (Join-Path $syncRepoDir "config.json") -Force
@@ -75,7 +87,6 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Pr
 Write-Host "[SUCCESS] Instalacion completada! El sistema autonomo esta activo."
 '@
 
-# Contenido para sync.ps1
 $syncPs1Content = @'
 # sync.ps1: Proceso Guardian de Sincronizacion Continua.
 $ErrorActionPreference = 'SilentlyContinue'; $ProgressPreference = 'SilentlyContinue'
@@ -102,7 +113,7 @@ function Resolve-NewError {
         if ($null -ne $suggestedCommand) { Write-Log "Solucion IA recibida: '$suggestedCommand'"; Write-Log "Ejecutando solucion..."; Invoke-Expression -Command $suggestedCommand } else { Write-Log "La IA no pudo proveer una solucion." }
     } catch { Write-Log "Fallo al contactar API de IA: $($_.Exception.Message)" }
 }
-Write-Log "Actualizando repositorio fuente (dev-environment-sync)..."; cd $syncRepoDir; git config pull.rebase false; git pull --quiet
+Write-Log "Actualizando repositorio fuente (entorno-viviente)..."; cd $syncRepoDir; git config pull.rebase false; git pull --quiet
 Write-Log "Verificando aplicaciones..."
 foreach ($app in $config.apps_to_install) {
     try { if (-not (winget list --id $app.id -e)) { Write-Log "Instalando $($app.name)..."; winget install --id $app.id -e --accept-source-agreements --accept-package-agreements --silent; if ($?) { Write-Log "$($app.name) instalado." } else { throw "Fallo la instalacion de $($app.name)." } } } catch { Resolve-NewError -errorRecord $_ }
@@ -118,20 +129,19 @@ Write-Log "--- FIN DE SINCRONIZACION ---"
 cd $logsRepoDir; git add .; $commitMessage = "Registro de sincronizacion automatica - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"; git commit -m $commitMessage --quiet; git push --quiet --force-with-lease; cd $PSScriptRoot
 '@
 
-# --- 3. Escritura de los archivos en el disco ---
-Write-Host "Escribiendo archivos del sistema en '$baseDir'..."
+# --- 4. Escritura de los archivos en el disco ---
+Write-Host "[PASO 3/5] Escribiendo archivos del sistema en '$baseDir'..."
 $configJsonContent | Out-File -FilePath (Join-Path $baseDir "config.json") -Encoding utf8
 $installPs1Content | Out-File -FilePath (Join-Path $baseDir "install.ps1") -Encoding utf8
-
 $syncPlaceholderDir = Join-Path $baseDir "source"
 if (-not (Test-Path $syncPlaceholderDir)) {
     New-Item -Path $syncPlaceholderDir -ItemType Directory -Force | Out-Null
 }
 $syncPs1Content | Out-File -FilePath (Join-Path $syncPlaceholderDir "sync.ps1") -Encoding utf8
 
-# --- 4. Lanzamiento del Proceso de Instalacion Principal ---
-Write-Host "Lanzando script de instalacion 'install.ps1'..."
+# --- 5. Lanzamiento del Proceso de Instalacion Principal ---
+Write-Host "[PASO 4/5] Lanzando script de instalacion 'install.ps1'..."
 $installScriptPath = Join-Path $baseDir "install.ps1"
 PowerShell.exe -ExecutionPolicy Bypass -File $installScriptPath
 
-Write-Host "El bootstrapper ha finalizado. El sistema ahora operara de forma autonoma."
+Write-Host "[PASO 5/5] El bootstrapper ha finalizado. El sistema ahora operara de forma autonoma."
