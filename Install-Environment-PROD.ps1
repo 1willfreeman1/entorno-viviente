@@ -1,16 +1,16 @@
 <#
 .SYNOPSIS
-    Bootstrapper de Entorno Viviente - PROD (Versión Robusta)
+    Bootstrapper de Entorno Viviente - PROD (Version Robusta)
 .DESCRIPTION
-    Este es el único punto de entrada para desplegar el sistema. Es autónomo,
-    robusto contra errores de codificación y se instala en una carpeta única
+    Este es el unico punto de entrada para desplegar el sistema. Es autonomo,
+    robusto contra errores de codificacion y se instala en una carpeta unica
     en el Escritorio del usuario.
 #>
 
 $ErrorActionPreference = 'Stop'
 Write-Host "Iniciando despliegue del Entorno Viviente..."
 
-# --- 1. Definición del Entorno de Despliegue en el Escritorio ---
+# --- 1. Definicion del Entorno de Despliegue en el Escritorio ---
 $baseDir = Join-Path $env:USERPROFILE "Desktop\LivingEnvironment"
 Write-Host "Directorio base del entorno: '$baseDir'"
 
@@ -94,7 +94,7 @@ function Resolve-NewError {
     param (\$errorRecord)
     \$errorMessage = \$errorRecord.Exception.Message; Write-Log "ERROR NO CATALOGADO: \$errorMessage"
     \$prompt = "Task: Eres una IA de resolucion de problemas para un script de PowerShell. Context: Un script de automatizacion de entorno de desarrollo fallo. Instruction: Provee UN UNICO comando de PowerShell ejecutable para arreglar el problema. No des explicaciones, comentarios o formato. Solo el comando. Error: '\$errorMessage'"
-    \$apiKey = \$config.gemini_api_key; \$apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=\$apiKey"
+    \$apiKey = \$config.gemini_api_key; \$apiUrl = "https://generativelenanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=\$apiKey"
     \$body = @{ contents = @( @{ parts = @( @{ text = \$prompt } ) } ) } | ConvertTo-Json
     try {
         \$response = Invoke-RestMethod -Uri \$apiUrl -Method Post -Body \$body -ContentType 'application/json'
@@ -122,24 +122,17 @@ cd \$logsRepoDir; git add .; \$commitMessage = "Registro de sincronizacion autom
 Write-Host "Escribiendo archivos del sistema en '$baseDir'..."
 $configJsonContent | Out-File -FilePath (Join-Path $baseDir "config.json") -Encoding utf8
 $installPs1Content | Out-File -FilePath (Join-Path $baseDir "install.ps1") -Encoding utf8
-# El script de sync ahora debe ir dentro de la carpeta 'source' que se va a crear
-# por lo tanto, no lo creamos aquí, dejamos que install.ps1 lo gestione
-# al clonar el repositorio. La version en el repo deberia ser la misma.
 
-# --- 4. Lanzamiento del Proceso de Instalación Principal ---
-Write-Host "Lanzando script de instalacion 'install.ps1'..."
-$installScriptPath = Join-Path $baseDir "install.ps1"
-
-# Antes de lanzar install.ps1, necesita el script sync.ps1 para ponerlo en el repo
+# Placeholder para el script de sync
 $syncPlaceholderDir = Join-Path $baseDir "source"
-New-Item -Path $syncPlaceholderDir -ItemType Directory -Force | Out-Null
+if (-not (Test-Path $syncPlaceholderDir)) {
+    New-Item -Path $syncPlaceholderDir -ItemType Directory -Force | Out-Null
+}
 $syncPs1Content | Out-File -FilePath (Join-Path $syncPlaceholderDir "sync.ps1") -Encoding utf8
 
-
+# --- 4. Lanzamiento del Proceso de Instalacion Principal ---
+Write-Host "Lanzando script de instalacion 'install.ps1'..."
+$installScriptPath = Join-Path $baseDir "install.ps1"
 PowerShell.exe -ExecutionPolicy Bypass -File $installScriptPath
 
-Write-Host "El bootstrapper ha finalizado. El sistema ahora operara de forma autonoma."```
-
-### Paso 2: Ejecuta el Único Comando de Inicio
-
-Ahora, abre una terminal de PowerShell **normal (sin elevación)** en cualquier máquina y ejecuta este comando.
+Write-Host "El bootstrapper ha finalizado. El sistema ahora operara de forma autonoma."
