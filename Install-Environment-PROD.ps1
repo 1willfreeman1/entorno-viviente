@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-    Bootstrapper de Entorno Viviente - Version 14 (Verdaderamente Silencioso)
+    Bootstrapper de Entorno Viviente - Version 16 (FINAL - Proceso Identificable)
 .DESCRIPTION
-    Esta version soluciona dos problemas criticos:
-    1. Evita la ventana de login de GitHub forzando el uso del PAT en cada comando git.
-    2. Hace que la Tarea Programada se ejecute de forma 100% invisible en segundo plano.
-    Este es el estado final deseado: una automatizacion completamente desatendida y silenciosa.
+    Esta es la version final y estable del sistema. Incluye todas las correcciones
+    de errores anteriores y anade una mejora clave: el proceso de sincronizacion
+    en segundo plano ahora es facilmente identificable en el Administrador de Tareas
+    con el titulo "Living Environment Guardian (Sync Process)".
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -47,7 +47,6 @@ if (Test-Path $syncRepoDir) {
     Write-Host "[INFO] Limpiando instalacion anterior..."
     Remove-Item -Path $syncRepoDir -Recurse -Force
 }
-# CORREGIDO: Anadido "-c credential.helper=" para evitar el popup de login de Windows.
 git -c credential.helper= clone --quiet $authedSyncUrl $syncRepoDir
 
 # --- 4. CREACION DE LOS ARCHIVOS DE SOPORTE (CONFIG Y SYNC) ---
@@ -79,20 +78,17 @@ $configJsonContent = @'
 '@
 
 $syncPs1Content = @'
-# sync.ps1: Proceso Guardian de Sincronizacion Continua. (Version Silenciosa)
+# sync.ps1: Proceso Guardian de Sincronizacion Continua. (Version Silenciosa e Identificable)
+$Host.UI.RawUI.WindowTitle = 'Living Environment Guardian (Sync Process)'
 $ErrorActionPreference = 'SilentlyContinue'; $ProgressPreference = 'SilentlyContinue'
 $baseDir = Join-Path $env:USERPROFILE "Desktop\LivingEnvironment"; $syncRepoDir = $PSScriptRoot
 $configFile = Join-Path $syncRepoDir "config.json"; $config = Get-Content -Path $configFile -Raw | ConvertFrom-Json
 $projectsBaseDir = Join-Path $baseDir "Projects"; $localLogsDir = Join-Path $baseDir "LocalLogs"
 if (-not (Test-Path $localLogsDir)) { New-Item -Path $localLogsDir -ItemType Directory -Force | Out-Null }
 $logFile = Join-Path $localLogsDir "$(Get-Date -Format 'yyyy-MM-dd').log"
-
-# --- DECLARACIONES DE FUNCIONES (Minificadas para reducir espacio) ---
 function Write-Log { param ([string]$Message); $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"; $logEntry = "[$timestamp] $Message"; Add-Content -Path $logFile -Value $logEntry }
 function Get-AppExecutablePath { param ([string]$appName); $startMenuFolders = @((Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"),(Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs")); $wshell = New-Object -ComObject WScript.Shell; foreach ($folder in $startMenuFolders) { if (Test-Path $folder) { $shortcut = Get-ChildItem -Path $folder -Recurse -Filter "*.lnk" | Where-Object { $_.BaseName -like "*$appName*" } | Select-Object -First 1; if ($null -ne $shortcut) { return ($wshell.CreateShortcut($shortcut.FullName)).TargetPath } } }; return $null }
 function Resolve-NewError { param ($errorRecord); $errorMessage = $errorRecord.Exception.Message; Write-Log "ERROR NO CATALOGADO: $errorMessage"; $prompt = "Task: Eres una IA de resolucion de problemas para un script de PowerShell. Instruction: Provee UN UNICO comando de PowerShell para arreglar el problema. Sin explicaciones. Error: '$errorMessage'"; $apiKey = $config.gemini_api_key; $apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=$apiKey"; $body = @{ contents = @( @{ parts = @( @{ text = $prompt } ) } ) } | ConvertTo-Json; try { $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 30; $suggestedCommand = $response.candidates.content.parts.text | Select-Object -First 1; if ($null -ne $suggestedCommand) { Write-Log "Solucion IA recibida: '$suggestedCommand'"; Write-Log "Ejecutando..."; Invoke-Expression -Command $suggestedCommand } else { Write-Log "La IA no pudo proveer una solucion." } } catch { Write-Log "Fallo al contactar API de IA: $($_.Exception.Message)" } }
-
-# --- CICLO DE SINCRONIZACION PRINCIPAL ---
 Write-Log "--- INICIO DE SINCRONIZACION ---"
 Write-Log "Paso 1/4: Auto-actualizacion..."; git -c credential.helper= -C $syncRepoDir config pull.rebase false; git -c credential.helper= -C $syncRepoDir pull --quiet
 Write-Log "Paso 2/4: Verificando aplicaciones..."; foreach ($app in $config.apps_to_install) { try { if (-not (winget list --id $app.id -e)) { Write-Log "Instalando $($app.name)..."; winget install --id $app.id -e --accept-source-agreements --accept-package-agreements --silent; if ($?) { Write-Log "$($app.name) instalado."; if ($config.create_shortcuts -eq $true) { Start-Sleep -Seconds 5; $exePath = Get-AppExecutablePath -appName $app.name; if ($null -ne $exePath) { $wshell = New-Object -ComObject WScript.Shell; $desktopPath = [System.Environment]::GetFolderPath('Desktop'); $persistentShortcutsDir = Join-Path $baseDir "Shortcuts"; if (-not (Test-Path $persistentShortcutsDir)) { New-Item -Path $persistentShortcutsDir -ItemType Directory -Force | Out-Null }; $shortcutName = "$($app.name).lnk"; $shortcut = $wshell.CreateShortcut((Join-Path $desktopPath $shortcutName)); $shortcut.TargetPath = $exePath; $shortcut.Save(); $shortcut = $wshell.CreateShortcut((Join-Path $persistentShortcutsDir $shortcutName)); $shortcut.TargetPath = $exePath; $shortcut.Save(); Write-Log "Accesos directos para $($app.name) creados." } else { Write-Log "ADVERTENCIA: No se encontro ejecutable para '$($app.name)'." } } } else { throw "Fallo la instalacion de $($app.name)." } } } catch { Resolve-NewError -errorRecord $_ } }
@@ -109,8 +105,8 @@ $syncPs1Content | Out-File -FilePath (Join-Path $syncRepoDir "sync.ps1") -Encodi
 Write-Host "[PASO 5/6] Registrando el guardian 'sync.ps1' para ejecucion silenciosa cada minuto..."
 $taskName = "User_LivingEnvironment_Guardian"
 $scriptPath = Join-Path $syncRepoDir "sync.ps1"
-# CORREGIDO: Anadido "-WindowStyle Hidden" para ejecucion invisible.
-$action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-ExecutionPolicy Bypass -File `"$scriptPath`"" -WorkingDirectory $syncRepoDir -WindowStyle Hidden
+$taskArguments = "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptPath`""
+$action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument $taskArguments -WorkingDirectory $syncRepoDir
 $trigger = New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Minutes 1) -Once -At (Get-Date)
 $principal = New-ScheduledTaskPrincipal -UserId (Get-CimInstance Win32_ComputerSystem).UserName -LogonType Interactive
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
