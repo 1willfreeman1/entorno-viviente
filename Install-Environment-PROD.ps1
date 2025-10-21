@@ -1,15 +1,15 @@
 <#
 .SYNOPSIS
-    Bootstrapper de Entorno Viviente - Version 13 (Logica de Creacion de Archivos Corregida)
+    Bootstrapper de Entorno Viviente - Version 14 (Verdaderamente Silencioso)
 .DESCRIPTION
-    Esta version soluciona el error critico "archivo no existe". El script ahora
-    primero clona el repositorio para establecer una base de Git, y LUEGO crea/sobrescribe
-    el script 'sync.ps1' usando una plantilla interna. Esto garantiza que el archivo
-    siempre exista antes de su ejecucion.
+    Esta version soluciona dos problemas criticos:
+    1. Evita la ventana de login de GitHub forzando el uso del PAT en cada comando git.
+    2. Hace que la Tarea Programada se ejecute de forma 100% invisible en segundo plano.
+    Este es el estado final deseado: una automatizacion completamente desatendida y silenciosa.
 #>
 
 $ErrorActionPreference = 'Stop'
-Write-Host "Iniciando despliegue AUTONOMO del Entorno Viviente..."
+Write-Host "Iniciando despliegue AUTONOMO y SILENCIOSO del Entorno Viviente..."
 
 # --- 1. VERIFICACION E INSTALACION DE GIT ---
 Write-Host "[PASO 1/6] Verificando prerrequisito: Git..."
@@ -31,7 +31,7 @@ $baseDir = Join-Path $env:USERPROFILE "Desktop\LivingEnvironment"
 $syncRepoDir = Join-Path $baseDir "source"
 Write-Host "[PASO 2/6] Definiendo directorio persistente en: '$baseDir'"
 
-# --- 3. CLONACION DEL REPOSITORIO FUENTE PARA ESTABLECER LA BASE DE GIT ---
+# --- 3. CLONACION INICIAL DEL REPOSITORIO FUENTE ---
 $configForClone = ConvertFrom-Json -InputObject (
     @"
     {
@@ -42,12 +42,13 @@ $configForClone = ConvertFrom-Json -InputObject (
 )
 $authedSyncUrl = $configForClone.repositories.sync_source.Replace("https://", "https://$($configForClone.github_pat)@")
 
-Write-Host "[PASO 3/6] Clonando 'entorno-viviente' para establecer la base de auto-actualizacion..."
+Write-Host "[PASO 3/6] Clonando 'entorno-viviente' (forzando uso de PAT)..."
 if (Test-Path $syncRepoDir) {
     Write-Host "[INFO] Limpiando instalacion anterior..."
     Remove-Item -Path $syncRepoDir -Recurse -Force
 }
-git clone --quiet $authedSyncUrl $syncRepoDir
+# CORREGIDO: Anadido "-c credential.helper=" para evitar el popup de login de Windows.
+git -c credential.helper= clone --quiet $authedSyncUrl $syncRepoDir
 
 # --- 4. CREACION DE LOS ARCHIVOS DE SOPORTE (CONFIG Y SYNC) ---
 Write-Host "[PASO 4/6] Creando/sobrescribiendo los archivos de soporte 'config.json' y 'sync.ps1'..."
@@ -78,51 +79,26 @@ $configJsonContent = @'
 '@
 
 $syncPs1Content = @'
-# sync.ps1: Proceso Guardian de Sincronizacion Continua.
+# sync.ps1: Proceso Guardian de Sincronizacion Continua. (Version Silenciosa)
 $ErrorActionPreference = 'SilentlyContinue'; $ProgressPreference = 'SilentlyContinue'
-$baseDir = Join-Path $env:USERPROFILE "Desktop\LivingEnvironment"
-$syncRepoDir = $PSScriptRoot
-$configFile = Join-Path $syncRepoDir "config.json"
-$config = Get-Content -Path $configFile -Raw | ConvertFrom-Json
-$projectsBaseDir = Join-Path $baseDir "Projects"
-$localLogsDir = Join-Path $baseDir "LocalLogs"
+$baseDir = Join-Path $env:USERPROFILE "Desktop\LivingEnvironment"; $syncRepoDir = $PSScriptRoot
+$configFile = Join-Path $syncRepoDir "config.json"; $config = Get-Content -Path $configFile -Raw | ConvertFrom-Json
+$projectsBaseDir = Join-Path $baseDir "Projects"; $localLogsDir = Join-Path $baseDir "LocalLogs"
 if (-not (Test-Path $localLogsDir)) { New-Item -Path $localLogsDir -ItemType Directory -Force | Out-Null }
 $logFile = Join-Path $localLogsDir "$(Get-Date -Format 'yyyy-MM-dd').log"
 
-function Write-Log { param ([string]$Message); $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"; $logEntry = "[$timestamp] $Message"; Add-Content -Path $logFile -Value $logEntry; Write-Host $logEntry }
-function Get-AppExecutablePath {
-    param ([string]$appName)
-    $startMenuFolders = @((Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"),(Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs"))
-    $wshell = New-Object -ComObject WScript.Shell
-    foreach ($folder in $startMenuFolders) {
-        if (Test-Path $folder) {
-            $shortcut = Get-ChildItem -Path $folder -Recurse -Filter "*.lnk" | Where-Object { $_.BaseName -like "*$appName*" } | Select-Object -First 1
-            if ($null -ne $shortcut) { return ($wshell.CreateShortcut($shortcut.FullName)).TargetPath }
-        }
-    }
-    return $null
-}
-function Resolve-NewError {
-    param ($errorRecord); $errorMessage = $errorRecord.Exception.Message; Write-Log "ERROR NO CATALOGADO: $errorMessage"; $prompt = "Task: Eres una IA de resolucion de problemas para un script de PowerShell. Instruction: Provee UN UNICO comando de PowerShell para arreglar el problema. Sin explicaciones. Error: '$errorMessage'"; $apiKey = $config.gemini_api_key; $apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=$apiKey"; $body = @{ contents = @( @{ parts = @( @{ text = $prompt } ) } ) } | ConvertTo-Json; try { $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 30; $suggestedCommand = $response.candidates.content.parts.text | Select-Object -First 1; if ($null -ne $suggestedCommand) { Write-Log "Solucion IA recibida: '$suggestedCommand'"; Write-Log "Ejecutando..."; Invoke-Expression -Command $suggestedCommand } else { Write-Log "La IA no pudo proveer una solucion." } } catch { Write-Log "Fallo al contactar API de IA: $($_.Exception.Message)" }
-}
+# --- DECLARACIONES DE FUNCIONES (Minificadas para reducir espacio) ---
+function Write-Log { param ([string]$Message); $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"; $logEntry = "[$timestamp] $Message"; Add-Content -Path $logFile -Value $logEntry }
+function Get-AppExecutablePath { param ([string]$appName); $startMenuFolders = @((Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"),(Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs")); $wshell = New-Object -ComObject WScript.Shell; foreach ($folder in $startMenuFolders) { if (Test-Path $folder) { $shortcut = Get-ChildItem -Path $folder -Recurse -Filter "*.lnk" | Where-Object { $_.BaseName -like "*$appName*" } | Select-Object -First 1; if ($null -ne $shortcut) { return ($wshell.CreateShortcut($shortcut.FullName)).TargetPath } } }; return $null }
+function Resolve-NewError { param ($errorRecord); $errorMessage = $errorRecord.Exception.Message; Write-Log "ERROR NO CATALOGADO: $errorMessage"; $prompt = "Task: Eres una IA de resolucion de problemas para un script de PowerShell. Instruction: Provee UN UNICO comando de PowerShell para arreglar el problema. Sin explicaciones. Error: '$errorMessage'"; $apiKey = $config.gemini_api_key; $apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=$apiKey"; $body = @{ contents = @( @{ parts = @( @{ text = $prompt } ) } ) } | ConvertTo-Json; try { $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 30; $suggestedCommand = $response.candidates.content.parts.text | Select-Object -First 1; if ($null -ne $suggestedCommand) { Write-Log "Solucion IA recibida: '$suggestedCommand'"; Write-Log "Ejecutando..."; Invoke-Expression -Command $suggestedCommand } else { Write-Log "La IA no pudo proveer una solucion." } } catch { Write-Log "Fallo al contactar API de IA: $($_.Exception.Message)" } }
 
+# --- CICLO DE SINCRONIZACION PRINCIPAL ---
 Write-Log "--- INICIO DE SINCRONIZACION ---"
-Write-Log "Paso 1/4: Auto-actualizacion del script guardian..."
-git -C $syncRepoDir config pull.rebase false; git -C $syncRepoDir pull --quiet
-Write-Log "Paso 2/4: Verificando aplicaciones..."
-foreach ($app in $config.apps_to_install) {
-    try {
-        if (-not (winget list --id $app.id -e)) {
-            Write-Log "Instalando $($app.name)..."; winget install --id $app.id -e --accept-source-agreements --accept-package-agreements --silent
-            if ($?) {
-                Write-Log "$($app.name) instalado."; if ($config.create_shortcuts -eq $true) { Start-Sleep -Seconds 5; $exePath = Get-AppExecutablePath -appName $app.name; if ($null -ne $exePath) { $wshell = New-Object -ComObject WScript.Shell; $desktopPath = [System.Environment]::GetFolderPath('Desktop'); $persistentShortcutsDir = Join-Path $baseDir "Shortcuts"; if (-not (Test-Path $persistentShortcutsDir)) { New-Item -Path $persistentShortcutsDir -ItemType Directory -Force | Out-Null }; $shortcutName = "$($app.name).lnk"; $shortcut = $wshell.CreateShortcut((Join-Path $desktopPath $shortcutName)); $shortcut.TargetPath = $exePath; $shortcut.Save(); $shortcut = $wshell.CreateShortcut((Join-Path $persistentShortcutsDir $shortcutName)); $shortcut.TargetPath = $exePath; $shortcut.Save(); Write-Log "Accesos directos para $($app.name) creados." } else { Write-Log "ADVERTENCIA: No se encontro ejecutable para '$($app.name)'." } }
-            } else { throw "Fallo la instalacion de $($app.name)." }
-        }
-    } catch { Resolve-NewError -errorRecord $_ }
-}
+Write-Log "Paso 1/4: Auto-actualizacion..."; git -c credential.helper= -C $syncRepoDir config pull.rebase false; git -c credential.helper= -C $syncRepoDir pull --quiet
+Write-Log "Paso 2/4: Verificando aplicaciones..."; foreach ($app in $config.apps_to_install) { try { if (-not (winget list --id $app.id -e)) { Write-Log "Instalando $($app.name)..."; winget install --id $app.id -e --accept-source-agreements --accept-package-agreements --silent; if ($?) { Write-Log "$($app.name) instalado."; if ($config.create_shortcuts -eq $true) { Start-Sleep -Seconds 5; $exePath = Get-AppExecutablePath -appName $app.name; if ($null -ne $exePath) { $wshell = New-Object -ComObject WScript.Shell; $desktopPath = [System.Environment]::GetFolderPath('Desktop'); $persistentShortcutsDir = Join-Path $baseDir "Shortcuts"; if (-not (Test-Path $persistentShortcutsDir)) { New-Item -Path $persistentShortcutsDir -ItemType Directory -Force | Out-Null }; $shortcutName = "$($app.name).lnk"; $shortcut = $wshell.CreateShortcut((Join-Path $desktopPath $shortcutName)); $shortcut.TargetPath = $exePath; $shortcut.Save(); $shortcut = $wshell.CreateShortcut((Join-Path $persistentShortcutsDir $shortcutName)); $shortcut.TargetPath = $exePath; $shortcut.Save(); Write-Log "Accesos directos para $($app.name) creados." } else { Write-Log "ADVERTENCIA: No se encontro ejecutable para '$($app.name)'." } } } else { throw "Fallo la instalacion de $($app.name)." } } } catch { Resolve-NewError -errorRecord $_ } }
 if (-not (Test-Path $projectsBaseDir)) { New-Item -Path $projectsBaseDir -ItemType Directory -Force | Out-Null }
-Write-Log "Paso 3/4: Sincronizando proyectos de codigo..."; foreach ($project in $config.projects_to_clone) { $projectPath = Join-Path $projectsBaseDir $project.name; $authedRepoUrl = $project.repo_url.Replace("https://", "https://$($config.github_pat)@"); try { if (-not (Test-Path $projectPath)) { Write-Log "Clonando '$($project.name)'..."; git clone --quiet $authedRepoUrl $projectPath } else { Write-Log "Actualizando '$($project.name)'..."; git -C $projectPath pull --quiet } } catch { Resolve-NewError -errorRecord $_ } }
-Write-Log "Paso 4/4: Sincronizando logs..."; $logsRepoDir = Join-Path $baseDir "logs_clone"; $authedLogsUrl = $config.repositories.logs.Replace("https://", "https://$($config.github_pat)@"); if (-not (Test-Path $logsRepoDir)) { git clone --quiet $authedLogsUrl $logsRepoDir }; cd $logsRepoDir; git config pull.rebase false; git pull --quiet; Copy-Item -Path $logFile -Destination $logsRepoDir -Force; git add .; $commitMessage = "Registro de sincronizacion: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"; git commit -m $commitMessage --quiet; git push --quiet
+Write-Log "Paso 3/4: Sincronizando proyectos..."; foreach ($project in $config.projects_to_clone) { $projectPath = Join-Path $projectsBaseDir $project.name; $authedRepoUrl = $project.repo_url.Replace("https://", "https://$($config.github_pat)@"); try { if (-not (Test-Path $projectPath)) { Write-Log "Clonando '$($project.name)'..."; git -c credential.helper= clone --quiet $authedRepoUrl $projectPath } else { Write-Log "Actualizando '$($project.name)'..."; git -c credential.helper= -C $projectPath pull --quiet } } catch { Resolve-NewError -errorRecord $_ } }
+Write-Log "Paso 4/4: Sincronizando logs..."; $logsRepoDir = Join-Path $baseDir "logs_clone"; $authedLogsUrl = $config.repositories.logs.Replace("https://", "https://$($config.github_pat)@"); if (-not (Test-Path $logsRepoDir)) { git -c credential.helper= clone --quiet $authedLogsUrl $logsRepoDir }; cd $logsRepoDir; git -c credential.helper= config pull.rebase false; git -c credential.helper= pull --quiet; Copy-Item -Path $logFile -Destination $logsRepoDir -Force; git add .; $commitMessage = "Registro de sincronizacion: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"; git commit -m $commitMessage --quiet; git -c credential.helper= push --quiet
 Write-Log "--- FIN DE SINCRONIZACION ---"
 '@
 
@@ -130,15 +106,16 @@ $configJsonContent | Out-File -FilePath (Join-Path $syncRepoDir "config.json") -
 $syncPs1Content | Out-File -FilePath (Join-Path $syncRepoDir "sync.ps1") -Encoding utf8
 
 # --- 5. REGISTRO DE LA TAREA PROGRAMADA PARA EL FUTURO ---
-Write-Host "[PASO 5/6] Registrando el guardian 'sync.ps1' para ejecucion cada minuto..."
+Write-Host "[PASO 5/6] Registrando el guardian 'sync.ps1' para ejecucion silenciosa cada minuto..."
 $taskName = "User_LivingEnvironment_Guardian"
 $scriptPath = Join-Path $syncRepoDir "sync.ps1"
-$action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-ExecutionPolicy Bypass -File `"$scriptPath`"" -WorkingDirectory $syncRepoDir
+# CORREGIDO: Anadido "-WindowStyle Hidden" para ejecucion invisible.
+$action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-ExecutionPolicy Bypass -File `"$scriptPath`"" -WorkingDirectory $syncRepoDir -WindowStyle Hidden
 $trigger = New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Minutes 1) -Once -At (Get-Date)
 $principal = New-ScheduledTaskPrincipal -UserId (Get-CimInstance Win32_ComputerSystem).UserName -LogonType Interactive
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 5))
-Write-Host "[INFO] Tarea '$taskName' registrada. El entorno se mantendra sincronizado."
+Write-Host "[INFO] Tarea '$taskName' registrada. El entorno se mantendra sincronizado invisiblemente."
 
 # --- 6. EJECUCION DE LA PRIMERA SINCRONIZACION INMEDIATA ---
 Write-Host "[PASO 6/6] Lanzando la PRIMERA sincronizacion ahora. El software se instalara a continuacion..."
